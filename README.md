@@ -13,6 +13,7 @@ One significant challenge in boid simulation is the computational complexity, wh
 
 The need for parallelism in boid simulation is evident from the interaction of multiple boids and the computational intensity of the process. By efficiently distributing the computation across multiple CPUs or GPU threads, we aim to achieve real-time simulation capabilities, even with large numbers of boids. This parallel approach is vital in handling the complex computations of flock dynamics while maintaining a smooth and realistic motion of the boids.
 
+![alt text](https://github.com/AmaadMartin/High-Performance-Simulation-of-Boids-A-Comparative-Study-using-CUDA-and-Message-Passing/blob/main/Screenshot%202023-11-15%20at%2011.48.43%20PM.png?raw=true)
 # Challenges of Parallelizing the boids algorithm:
 
 Parallelization and Load Balancing:
