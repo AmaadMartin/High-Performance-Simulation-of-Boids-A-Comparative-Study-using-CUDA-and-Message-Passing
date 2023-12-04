@@ -43,7 +43,7 @@ Offer an interactive element for attendees to modify simulation parameters.
 # Platform Choice:
 We will be using OpenMPI for our CPU implementation as the load balancing methods could benefit from message passing. For our GPU implementation we will use CUDA as the 2D coordinate system of the grids used for load balancing will lend itself well.
 
-# Schedule:
+# Schedule (Revised):
 Week 1: 
 
 Research existing parallelization methods for boid simulations using CUDA and multicore CPU techniques.
@@ -80,5 +80,52 @@ Finalize and polish all code implementations, ensuring robustness and efficiency
 Complete the poster, website, and write-up for the project.
 Final preparations for the poster presentation.
 Present the poster and demonstrate the project (exact date and time to be determined).
+
+# Milestone Report
+
+# Revised Schedule
+
+Week 1:
+Research existing parallelization methods for boid simulations using 
+CUDA and multicore CPU techniques.
+
+Week 2:
+Implement a sequential version of Boids.
+
+Week 3:
+Work on integrating the visual renderer library. Begin working on CUDA and OpenMPI implementations.
+
+Week 4:
+Continue implementing CUDA and OpenMPI implementations. Analyze and implement load balancing and memory management strategies. Work and complete Milestone Report.
+
+Week 5:
+Finalize CUDA and OpenMPI implementations. Finalize visual rendering library integration. Begin collecting performance data. Begin drafting content for poster session and project website.
+
+Week 6:
+Finalize and polish all code implementations, ensuring robustness and efficiency. Complete the poster, website, and write-up for the project. Final preparations for the poster presentation. Present the poster and demonstrate the project.
+
+# Work completed so far
+
+So far, we have programmed a sequential implementation of the Boids algorithm. This includes both the algorithm, and some common interfaces we will be using in both our CUDA and OpenMPI implementations. In addition, we have created reference benchmark-files using our implementation. These will be used in the future to compare the outputs of our sequential, CUDA, and OpenMPI implementations. We have also started on the CUDA implementation, as well as the OpenMPI implementation, however, as of now, we don’t have any preliminary results for these implementations. We also attempted to set up a visual renderer for visual results, but do not have it working as of late.
+
+# Describe how you are doing with respect to the goals and deliverables stated in your proposal. Add Revised Goals.
+
+We are not consistent with the goals and deliverables we stated in our initial proposal. However, we still believe we will be able to produce all deliverables, considering the progress we have made over the past two weeks. We are close to finishing our implementations for CUDA, and OpenMPI. Our nice to haves may be more challenging due to time constraints. We may not have the chance to extend the model to have more complex behaviors, but it may be possible to extend the renderer we are using to showcase a real-time interactive simulation with user-modifiable parameters.
+
+New goals:
+- Implement functional boid simulations using CUDA for GPU
+- Implement function boid simulation using OpenMPI for CPU Conduct performance analysis and comparison between CUDA and CPU implementations.
+- Implement advanced load balancing and efficient memory management for optimal placement of interacting boids.
+- Develop a real-time interactive simulation with user-modifiable parameters
+- Showcase a live demonstration of boid simulation
+- Present comparative performance analysis charts.
+
+# Preliminary Results
+
+We currently do not have preliminary results.
+
+# Concerns/Unknowns
+
+Issues that concern us is getting the third party rendering library to work, but otherwise it is just a matter of coding and doing the work.
 
 
