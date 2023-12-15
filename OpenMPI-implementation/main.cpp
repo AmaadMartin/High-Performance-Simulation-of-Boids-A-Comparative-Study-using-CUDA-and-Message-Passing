@@ -191,7 +191,7 @@ int main(int argc, char *argv[]) {
 
   int block_lengths[3] = {1, 2, 2};  // Number of elements in each block
 
-  //Might need to fix this this is weird
+
   MPI_Aint displacements[3] = { offsetof(Boid, id),
                                 offsetof(Boid, position),
                                 offsetof(Boid, velocity)};
@@ -240,6 +240,8 @@ int main(int argc, char *argv[]) {
         gridBoids.push_back(boids[i]);
       }
     }
+
+    printf("taskid: %d, iteration: %d, size: %d\n", taskid, iteration, size);
     
     newBoids.resize(size);
 
@@ -290,6 +292,8 @@ int main(int argc, char *argv[]) {
         }
       }
 
+      double beforeExchange = totalSimulationTimer.elapsed();
+
       // send particles to partners
       for(int i = 0; i < partners.size(); i++) {
         if(completelyInRadius(partners[i], taskid, bounds, stepParams.cullRadius)){
@@ -310,11 +314,18 @@ int main(int argc, char *argv[]) {
         MPI_Recv(treeBoids.data() + treeBoids.size() - partnerSize, partnerSize, MPI_BOID, partner, tag2, MPI_COMM_WORLD, &stats[0]);
       }
 
+      double afterExchange = totalSimulationTimer.elapsed();
+
+      printf("taskid: %d, iteration: %d, beforeExchange: %.6fs, afterExchange: %.6fs\n", taskid, iteration, beforeExchange, afterExchange);
+
+      double beforeSim = totalSimulationTimer.elapsed();
       // build tree
       QuadTree::buildQuadTree(treeBoids, tree);
 
       // simulate step 
       simulateStep(tree, gridBoids, newBoids, stepParams);
+      double afterSim = totalSimulationTimer.elapsed();
+      printf("taskid: %d, iteration: %d, beforeSim: %.6fs, afterSim: %.6fs\n", taskid, iteration, beforeSim, afterSim);
       gridBoids =  newBoids;
       iteration++;
     }
@@ -325,6 +336,7 @@ int main(int argc, char *argv[]) {
   double totalSimulationTime = totalSimulationTimer.elapsed();
 
   finalBoids.resize(boids.size());
+
   for(int i = 0; i < boids.size(); i++) {
     finalBoids[boids[i].id] = boids[i];
   }

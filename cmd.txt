@@ -1,0 +1,1 @@
+mpiexec -n 4 ./main -i 2 -in benchmark-files/random-100-init.txt -r 20
