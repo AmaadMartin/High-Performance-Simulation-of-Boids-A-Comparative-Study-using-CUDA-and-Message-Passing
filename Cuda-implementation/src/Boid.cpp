@@ -4,7 +4,7 @@
 #include <math.h>
 #include "Boid.h"
 
-#define SCREEN_LENGTH 1000000
+#define SCREEN_LENGTH 5000
 #define MAX_VELOCITY 1
 #define MAX_SPEED 3.5
 #define MAX_FORCE 0.5

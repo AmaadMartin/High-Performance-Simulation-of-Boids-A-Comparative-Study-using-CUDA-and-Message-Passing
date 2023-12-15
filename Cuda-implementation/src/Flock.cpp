@@ -7,12 +7,13 @@
 #include <thrust/sort.h>
 #include <thrust/device_ptr.h>
 #include <cstdint>
+#include "timing.h"
 
 // =============================================== //
 // ======== Flock Functions from Flock.h ========= //
 // =============================================== //
 
-#define SCREEN_LENGTH 1000000
+#define SCREEN_LENGTH 5000
 
 #define cudaCheckError(ans) cudaAssert((ans), __FILE__, __LINE__);
 inline void cudaAssert(cudaError_t code, const char *file, int line, bool abort = true)
@@ -120,7 +121,6 @@ __device__ int hilbertCurveHash(int x, int y, int screenLength, int cellSize)
 __global__ void flockingKernel(Boid *flock, Boid *newFlock, int flockSize, Pvector *sortedTuples, int *cellStarts, int *cellEnds, int *hash, int CELL_SIZE)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    // printf("idx: %d\n", idx);
     if (idx < flockSize)
     {
         // make copy of boid into new flock
@@ -143,7 +143,7 @@ __global__ void flockingKernel(Boid *flock, Boid *newFlock, int flockSize, Pvect
         {
             for (int cellX = startX; cellX < endX; cellX++)
             {
-                int neighborCellSortedIndex = linearHashFn(cellX, cellY, SCREEN_LENGTH, CELL_SIZE);
+                int neighborCellSortedIndex = hilbertCurveHashFn(cellX, cellY, numCellsHorizontal);
                 int start = cellStarts[neighborCellSortedIndex];
                 int end = cellEnds[neighborCellSortedIndex];
                 for (int i = start; i < end; i++)
@@ -171,6 +171,7 @@ __global__ void flockingKernel(Boid *flock, Boid *newFlock, int flockSize, Pvect
                 }
             }
         }
+        // printf("neighborCount: %d\n", neighborCount);
         if (separationCount > 0)
         {
             separationVector.divScalar((float)separationCount);
@@ -215,7 +216,7 @@ __global__ void calcHashKernel(int *hash, Boid *boids, int screenLength, int num
     {
         int x = boids[idx].location.x;
         int y = boids[idx].location.y;
-        hash[idx] = linearHash(x, y, screenLength, cellSize);
+        hash[idx] = hilbertCurveHash(x, y, screenLength, cellSize);
         // printf("x: %d, y: %d hash: %d\n", x, y, hash[idx]);
     }
 }
@@ -264,9 +265,13 @@ __global__ void cellEndsKernel(Pvector *sorted, int *cellEnds, int numBoids)
 
 __host__ void computeGrid(int *hash, Boid *boids, Pvector *unsortedTuples, Pvector *sortedTuples, int *cellStarts, int *cellEnds, int screenLength, int numBoids, int cellSize, int numThreads, int numBlocks)
 {
+    // Timer hashTimer;
     calcHashKernel<<<numBlocks, numThreads>>>(hash, boids, screenLength, numBoids, cellSize);
     particleHashKernel<<<numBlocks, numThreads>>>(hash, sortedTuples, numBoids);
+    // cudaDeviceSynchronize();
+    // printf("Hash time: %f\n", hashTimer.elapsed());
 
+    
     // make host hash and host sorted tuples
     int *hashHost = new int[numBoids];
     Pvector *sortedTuplesHost = new Pvector[numBoids];
@@ -274,19 +279,19 @@ __host__ void computeGrid(int *hash, Boid *boids, Pvector *unsortedTuples, Pvect
     cudaMemcpy(sortedTuplesHost, sortedTuples, numBoids * sizeof(Pvector), cudaMemcpyDeviceToHost);
 
     // Sort the tuples based on the hash values (.x component)
+    // Timer sortTimer;
     thrust::sort_by_key(hashHost, hashHost + numBoids, sortedTuplesHost);
-
-    // print sorted tuples
-    // for (int i = 0; i < numBoids; i++)
-    // {
-    //     printf("Sorted Tuple %d: (%f, %f)\n", i, sortedTuplesHost[i].x, sortedTuplesHost[i].y);
-    // }
+    // cudaDeviceSynchronize();
+    // printf("Sort time: %f\n", sortTimer.elapsed());
 
     // Copy sorted tuples from host to device
     cudaMemcpy(sortedTuples, sortedTuplesHost, numBoids * sizeof(Pvector), cudaMemcpyHostToDevice);
 
+    // Timer rangeTimer;
     cellStartsKernel<<<numBlocks, numThreads>>>(sortedTuples, cellStarts, numBoids);
     cellEndsKernel<<<numBlocks, numThreads>>>(sortedTuples, cellEnds, numBoids);
+    // cudaDeviceSynchronize();
+    // printf("Range time: %f\n", rangeTimer.elapsed());
 }
 
 __host__ __device__ void Flock::cudaFlocking()
@@ -340,11 +345,14 @@ __host__ __device__ void Flock::cudaFlocking()
     computeGrid(deviceHash, deviceFlock, deviceUnsortedTuples, deviceSortedTuples, deviceCellStarts, deviceCellEnds, SCREEN_LENGTH, size, radius * 2, numThreads, numBlocks);
 
     // Run cudaFlocking kernel
+    // Timer flockingTimer;
     flockingKernel<<<numBlocks, numThreads>>>(deviceFlock, deviceNewFlock, size, deviceSortedTuples, deviceCellStarts, deviceCellEnds, deviceHash, radius * 2);
+    
 
     // Synchronize to ensure all CUDA calls are completed
     cudaDeviceSynchronize();
-
+    // printf("Flocking time: %f\n", flockingTimer.elapsed());
+    
     // Copy flock from device to host
     cudaMemcpy(flockBuffer, deviceNewFlock, numBytes, cudaMemcpyDeviceToHost);
 
