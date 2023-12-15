@@ -8,12 +8,11 @@
 #include <thrust/device_ptr.h>
 #include <cstdint>
 
-
 // =============================================== //
 // ======== Flock Functions from Flock.h ========= //
 // =============================================== //
 
-#define SCREEN_LENGTH 1000
+#define SCREEN_LENGTH 1000000
 
 #define cudaCheckError(ans) cudaAssert((ans), __FILE__, __LINE__);
 inline void cudaAssert(cudaError_t code, const char *file, int line, bool abort = true)
@@ -63,7 +62,8 @@ __device__ int linearHash(int x, int y, int screenLength, int cellSize)
     return linearHashFn(cellX, cellY, screenLength, cellSize);
 }
 
-__device__ uint32_t zOrderCurveHashFn(uint32_t x, uint32_t y) {
+__device__ uint32_t zOrderCurveHashFn(uint32_t x, uint32_t y)
+{
     x = (x | (x << 8)) & 0x00FF00FF;
     x = (x | (x << 4)) & 0x0F0F0F0F;
     x = (x | (x << 2)) & 0x33333333;
@@ -77,22 +77,27 @@ __device__ uint32_t zOrderCurveHashFn(uint32_t x, uint32_t y) {
     return x | (y << 1);
 }
 
-__device__ int zOrderCurveHash(int x, int y, int screenLength, int cellSize) {
+__device__ int zOrderCurveHash(int x, int y, int screenLength, int cellSize)
+{
     int numCellsHorizontal = screenLength / cellSize;
     int cellX = x / cellSize;
     int cellY = y / cellSize;
     return zOrderCurveHashFn(cellX, cellY);
 }
 
-__device__ uint32_t hilbertCurveHashFn(uint32_t x, uint32_t y, int n) {
-    uint32_t rx, ry, s, d=0;
-    for (s = n / 2; s > 0; s /= 2) {
+__device__ uint32_t hilbertCurveHashFn(uint32_t x, uint32_t y, int n)
+{
+    uint32_t rx, ry, s, d = 0;
+    for (s = n / 2; s > 0; s /= 2)
+    {
         rx = (x & s) > 0;
         ry = (y & s) > 0;
         d += s * s * ((3 * rx) ^ ry);
         // Rotate
-        if (!ry) {
-            if (rx) {
+        if (!ry)
+        {
+            if (rx)
+            {
                 x = n - 1 - x;
                 y = n - 1 - y;
             }
@@ -104,14 +109,15 @@ __device__ uint32_t hilbertCurveHashFn(uint32_t x, uint32_t y, int n) {
     return d;
 }
 
-__device__ int hilbertCurveHash(int x, int y, int screenLength, int cellSize) {
+__device__ int hilbertCurveHash(int x, int y, int screenLength, int cellSize)
+{
     int numCellsHorizontal = screenLength / cellSize;
     int cellX = x / cellSize;
     int cellY = y / cellSize;
     return hilbertCurveHashFn(cellX, cellY, numCellsHorizontal);
 }
 
-__global__ void flockingKernel(Boid *flock, Boid* newFlock, int flockSize, Pvector *sortedTuples, int *cellStarts, int *cellEnds, int *hash, int CELL_SIZE)
+__global__ void flockingKernel(Boid *flock, Boid *newFlock, int flockSize, Pvector *sortedTuples, int *cellStarts, int *cellEnds, int *hash, int CELL_SIZE)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     // printf("idx: %d\n", idx);
@@ -133,11 +139,11 @@ __global__ void flockingKernel(Boid *flock, Boid* newFlock, int flockSize, Pvect
         Pvector cohesionVector(0, 0);
         Pvector diff(0, 0);
 
-        for (int y = startY; y <= endY; y++)
+        for (int cellY = startY; cellY <= endY; cellY++)
         {
-            for (int x = startX; x < endX; x++)
+            for (int cellX = startX; cellX < endX; cellX++)
             {
-                int neighborCellSortedIndex = linearHashFn(x, y, SCREEN_LENGTH, CELL_SIZE);
+                int neighborCellSortedIndex = linearHashFn(cellX, cellY, SCREEN_LENGTH, CELL_SIZE);
                 int start = cellStarts[neighborCellSortedIndex];
                 int end = cellEnds[neighborCellSortedIndex];
                 for (int i = start; i < end; i++)
@@ -278,7 +284,7 @@ __host__ void computeGrid(int *hash, Boid *boids, Pvector *unsortedTuples, Pvect
 
     // Copy sorted tuples from host to device
     cudaMemcpy(sortedTuples, sortedTuplesHost, numBoids * sizeof(Pvector), cudaMemcpyHostToDevice);
-    
+
     cellStartsKernel<<<numBlocks, numThreads>>>(sortedTuples, cellStarts, numBoids);
     cellEndsKernel<<<numBlocks, numThreads>>>(sortedTuples, cellEnds, numBoids);
 }
@@ -328,7 +334,7 @@ __host__ __device__ void Flock::cudaFlocking()
     cudaMemcpy(deviceFlock, flockBuffer, numBytes, cudaMemcpyHostToDevice);
 
     // Compute grid
-    // printf("threads: %d\n", numThreads); 
+    // printf("threads: %d\n", numThreads);
     int threads = numThreads;
     int numBlocks = (size + threads - 1) / threads;
     computeGrid(deviceHash, deviceFlock, deviceUnsortedTuples, deviceSortedTuples, deviceCellStarts, deviceCellEnds, SCREEN_LENGTH, size, radius * 2, numThreads, numBlocks);
@@ -350,7 +356,16 @@ __host__ __device__ void Flock::cudaFlocking()
 
     // Free device memory
     cudaFree(deviceFlock);
-    }
+    cudaFree(deviceNewFlock);
+    cudaFree(deviceHash);
+    cudaFree(deviceUnsortedTuples);
+    cudaFree(deviceSortedTuples);
+    cudaFree(deviceCellStarts);
+    cudaFree(deviceCellEnds);
+
+    // Free host memory
+    delete[] flockBuffer;
+}
 
 // Runs the run function for every boid in the flock checking against the flock
 // itself. Which in turn applies all the rules to the flock.
