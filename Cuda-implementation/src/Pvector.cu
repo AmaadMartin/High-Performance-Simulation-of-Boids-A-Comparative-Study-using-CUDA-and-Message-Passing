@@ -1,5 +1,7 @@
 #include <math.h>
 #include "Pvector.h"
+#include <cuda.h>
+#include <cuda_runtime.h>
 
 // =================================================== //
 // ======== Pvector Functions from Pvector.h ========= //
@@ -8,75 +10,75 @@
 #define PI 3.141592635
 
 // Sets values of x and y for Pvector
-void Pvector::set(float i, float o)
+__device__ void Pvector::set(float i, float o)
 {
     x = i;
     y = o;
 }
 
-void Pvector::addVector(const Pvector& v)
+__device__ void Pvector::addVector(const Pvector& v)
 {
     x += v.x;
     y += v.y;
 }
 
 // Adds to a Pvector by a constant number
-void Pvector::addScalar(float s)
+__device__ void Pvector::addScalar(float s)
 {
     x += s;
     y += s;
 }
 
 // Subtracts 2 vectors
-void Pvector::subVector(const Pvector& v)
+__device__ void Pvector::subVector(const Pvector& v)
 {
     x -= v.x;
     y -= v.y;
 }
 
 // Subtracts two vectors and returns the difference as a vector
-Pvector Pvector::subTwoVector(const Pvector& v, const Pvector& v2)
+__device__ Pvector Pvector::subTwoVector(const Pvector& v, const Pvector& v2)
 {
     Pvector tmp(v.x - v2.x, v.y - v2.y);
     return std::move(tmp);
 }
 
 // Adds to a Pvector by a constant number
-void Pvector::subScalar(float s)
+__device__ void Pvector::subScalar(float s)
 {
     x -= s;
     y -= s;
 }
 
 // Multiplies 2 vectors
-void Pvector::mulVector(const Pvector& v)
+__device__ void Pvector::mulVector(const Pvector& v)
 {
     x *= v.x;
     y *= v.y;
 }
 
 // Adds to a Pvector by a constant number
-void Pvector::mulScalar(float s)
+__device__ void Pvector::mulScalar(float s)
 {
     x *= s;
     y *= s;
 }
 
 // Divides 2 vectors
-void Pvector::divVector(const Pvector& v)
+__device__ void Pvector::divVector(const Pvector& v)
 {
     x /= v.x;
     y /= v.y;
 }
 
 // Adds to a Pvector by a constant number
-void Pvector::divScalar(float s)
+__device__ void Pvector::divScalar(float s)
 {
     x /= s;
     y /= s;
 }
 
-void Pvector::limit(double max)
+__device__ void Pvector::limit(double max)
 {
     double size = magnitude();
 
@@ -86,7 +88,7 @@ void Pvector::limit(double max)
 }
 
 // Calculates the distance between the first Pvector and second Pvector
-float Pvector::distance(const Pvector& v)
+__device__ float Pvector::distance(const Pvector& v)
 {
     float dx = x - v.x;
     float dy = y - v.y;
@@ -95,26 +97,26 @@ float Pvector::distance(const Pvector& v)
 }
 
 // Calculates the dot product of a vector
-float Pvector::dotProduct(const Pvector& v)
+__device__ float Pvector::dotProduct(const Pvector& v)
 {
     float dot = x * v.x + y * v.y;
     return dot;
 }
 
 // Calculates magnitude of referenced object
-float Pvector::magnitude()
+__device__ float Pvector::magnitude()
 {
     return sqrt(x*x + y*y);
 }
 
-void Pvector::setMagnitude(float x)
+__device__ void Pvector::setMagnitude(float x)
 {
     normalize();
     mulScalar(x);
 }
 
 // Calculate the angle between Pvector 1 and Pvector 2
-float Pvector::angleBetween(const Pvector& v)
+__device__ float Pvector::angleBetween(const Pvector& v)
 {
     if (x == 0 && y == 0) return 0.0f;
     if (v.x == 0 && v.y == 0) return 0.0f;
@@ -134,7 +136,7 @@ float Pvector::angleBetween(const Pvector& v)
 }
 
 // normalize divides x and y by magnitude if it has a magnitude.
-void Pvector::normalize()
+__device__ void Pvector::normalize()
 {
     float m = magnitude();
 
@@ -146,7 +148,7 @@ void Pvector::normalize()
 }
 
 // Creates and returns a copy of the Pvector used as a parameter
-Pvector Pvector::copy(const Pvector& v)
+__device__ Pvector Pvector::copy(const Pvector& v)
 {
     Pvector copy(v.x, v.y);
     return copy;

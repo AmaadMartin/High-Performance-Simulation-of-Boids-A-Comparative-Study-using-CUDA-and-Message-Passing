@@ -3,26 +3,32 @@
 #include "Boid.h"
 #include "Pvector.h"
 #include "Game.h"
-#include "Common.h"
+#include "Options.h"
+// #include "Common.h"
 
 // Construct window using SFML
-Game::Game(StartupOptions startupOptions)
+__host__ __device__ Game::Game(Options startupOptions)
 {    
     // Create flock from file
-    flock = loadFromFile(startupOptions);
+    vector<Boid> boids = startupOptions.loadFromFile();
     options = startupOptions;
+    flock = Flock(boids);
 }
 
 // Run the simulation
-void Game::Run()
+__host__ __device__ void Game::Run()
 {
     for (int i = 0; i < options.numIterations; i++) {
         SimulationStep();
     }
 }
 
-void Game::SimulationStep()
+__host__ __device__ void Game::SimulationStep()
 {
     // Applies the three rules to each boid in the flock and changes them accordingly.
-    flock.flocking();
+    if (options.CUDA) {
+        flock.cudaFlocking();
+    } else {
+        flock.flocking();
+    }
 }

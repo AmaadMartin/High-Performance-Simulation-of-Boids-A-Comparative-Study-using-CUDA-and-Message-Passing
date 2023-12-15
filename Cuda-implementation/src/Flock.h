@@ -14,17 +14,23 @@
 class Flock {
 public:
     //Constructors
-    Flock() {}
+    __host__ __device__ Flock() {}
+    __host__ __device__ Flock(vector<Boid> boids) {
+        flock = boids;
+        radius = 50;
+    }
     // Accessor functions
-    int getSize();
+    __host__ __device__ int getSize();
     //Read only and read/write methods.
-    Boid getBoid(int i);
-    vector<Boid> getFlock();
+    __host__ __device__ Boid getBoid(int i);
+    __host__ __device__ vector<Boid> getFlock();
     // Mutator Functions
-    void addBoid(const Boid& b);
-    void flocking();
+    __host__ __device__ void addBoid(const Boid& b);
+    __host__ __device__ void cudaFlocking();  
+    __host__ __device__ void flocking();
 private:
     vector<Boid> flock;  
+    float radius;
 };
 
 #endif

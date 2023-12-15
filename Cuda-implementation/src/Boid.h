@@ -2,6 +2,8 @@
 #include <vector>
 #include <stdlib.h>
 #include <iostream>
+#include <cuda.h>
+#include <cuda_runtime.h>
 
 #ifndef BOID_H_
 #define BOID_H_
@@ -37,18 +39,29 @@ public:
     float maxSpeed;
     float maxForce;
     float radius;
-    Boid();
-    void applyForce(const Pvector& force);
-    // Three Laws that boids follow
-    Pvector Separation(const vector<Boid>& Boids);
-    Pvector Alignment(const vector<Boid>& Boids);
-    Pvector Cohesion(const vector<Boid>& Boids);
-    //Functions involving SFML and visualisation linking
-    Pvector seek(const Pvector& v);
-    void run(const vector<Boid>& v);
-    void update();
-    void flock(const vector<Boid>& v);
-    float angle(const Pvector& v);
+    int id;
+    
+    __host__ __device__ Boid();
+    __host__ __device__ void applyForce(const Pvector& force);
+    __host__ __device__ Pvector Separation(Boid b);
+    __host__ __device__ Pvector Separation(Boid* flock, int flockSize);
+    __host__ __device__ Pvector Separation(const vector<Boid>& Boids);
+    __host__ __device__ Pvector Alignment(Boid b);
+    __host__ __device__ Pvector Alignment(Boid* flock, int flockSize);
+    __host__ __device__ Pvector Alignment(const vector<Boid>& Boids);
+    __host__ __device__ Pvector Cohesion(Boid b);
+    __host__ __device__ Pvector Cohesion(Boid* flock, int flockSize);
+    __host__ __device__ Pvector Cohesion(const vector<Boid>& Boids);
+    __host__ __device__ Pvector seek(const Pvector& v);
+    __host__ __device__ void run(Boid* v, int flockSize);
+    __host__ __device__ void run(const vector<Boid>& v);
+    __host__ __device__ void update();
+    __host__ __device__ void bound();
+    __host__ __device__ void flock(Boid b);
+    __host__ __device__ void flock(Boid* v, int flockSize);
+    __host__ __device__ void flock(const vector<Boid>& v);
+    __host__ __device__ float angle(const Pvector& v);
+
 };
 
 #endif
