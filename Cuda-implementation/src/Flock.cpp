@@ -6,6 +6,8 @@
 #include "Options.h"
 #include <thrust/sort.h>
 #include <thrust/device_ptr.h>
+#include <cstdint>
+
 
 // =============================================== //
 // ======== Flock Functions from Flock.h ========= //
@@ -46,19 +48,84 @@ __host__ __device__ void Flock::addBoid(const Boid &b)
     flock.push_back(std::move(b));
 }
 
-__global__ void flockingKernel(Boid *flock, int flockSize, Pvector *sortedTuples, int *cellStarts, int *cellEnds, int *hash, int CELL_SIZE)
+__device__ int linearHashFn(int cellX, int cellY, int screenLength, int cellSize)
+{
+    int numCellsHorizontal = screenLength / cellSize;
+    int cellIndex = cellY * numCellsHorizontal + cellX;
+    return cellIndex;
+}
+
+__device__ int linearHash(int x, int y, int screenLength, int cellSize)
+{
+    int numCellsHorizontal = screenLength / cellSize;
+    int cellX = x / cellSize;
+    int cellY = y / cellSize;
+    return linearHashFn(cellX, cellY, screenLength, cellSize);
+}
+
+__device__ uint32_t zOrderCurveHashFn(uint32_t x, uint32_t y) {
+    x = (x | (x << 8)) & 0x00FF00FF;
+    x = (x | (x << 4)) & 0x0F0F0F0F;
+    x = (x | (x << 2)) & 0x33333333;
+    x = (x | (x << 1)) & 0x55555555;
+
+    y = (y | (y << 8)) & 0x00FF00FF;
+    y = (y | (y << 4)) & 0x0F0F0F0F;
+    y = (y | (y << 2)) & 0x33333333;
+    y = (y | (y << 1)) & 0x55555555;
+
+    return x | (y << 1);
+}
+
+__device__ int zOrderCurveHash(int x, int y, int screenLength, int cellSize) {
+    int numCellsHorizontal = screenLength / cellSize;
+    int cellX = x / cellSize;
+    int cellY = y / cellSize;
+    return zOrderCurveHashFn(cellX, cellY);
+}
+
+__device__ uint32_t hilbertCurveHashFn(uint32_t x, uint32_t y, int n) {
+    uint32_t rx, ry, s, d=0;
+    for (s = n / 2; s > 0; s /= 2) {
+        rx = (x & s) > 0;
+        ry = (y & s) > 0;
+        d += s * s * ((3 * rx) ^ ry);
+        // Rotate
+        if (!ry) {
+            if (rx) {
+                x = n - 1 - x;
+                y = n - 1 - y;
+            }
+            uint32_t temp = x;
+            x = y;
+            y = temp;
+        }
+    }
+    return d;
+}
+
+__device__ int hilbertCurveHash(int x, int y, int screenLength, int cellSize) {
+    int numCellsHorizontal = screenLength / cellSize;
+    int cellX = x / cellSize;
+    int cellY = y / cellSize;
+    return hilbertCurveHashFn(cellX, cellY, numCellsHorizontal);
+}
+
+__global__ void flockingKernel(Boid *flock, Boid* newFlock, int flockSize, Pvector *sortedTuples, int *cellStarts, int *cellEnds, int *hash, int CELL_SIZE)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     // printf("idx: %d\n", idx);
     if (idx < flockSize)
     {
+        // make copy of boid into new flock
+        newFlock[idx] = flock[idx];
         int numCellsHorizontal = SCREEN_LENGTH / CELL_SIZE;
         int cellIndex = hash[idx];
         int startX = max(0, cellIndex % numCellsHorizontal - 1);
         int startY = max(0, cellIndex / numCellsHorizontal - 1);
         int endX = min(numCellsHorizontal - 1, cellIndex % numCellsHorizontal + 1);
         int endY = min(numCellsHorizontal - 1, cellIndex / numCellsHorizontal + 1);
-        float desiredSeparation = flock[idx].radius / 2;
+        float desiredSeparation = newFlock[idx].radius / 2;
         int separationCount = 0;
         int neighborCount = 0;
         Pvector separationVector(0, 0);
@@ -70,26 +137,28 @@ __global__ void flockingKernel(Boid *flock, int flockSize, Pvector *sortedTuples
         {
             for (int x = startX; x < endX; x++)
             {
-                int neighborCellIndex = x + y * numCellsHorizontal;
-                int start = cellStarts[neighborCellIndex];
-                int end = cellEnds[neighborCellIndex];
+                int neighborCellSortedIndex = linearHashFn(x, y, SCREEN_LENGTH, CELL_SIZE);
+                int start = cellStarts[neighborCellSortedIndex];
+                int end = cellEnds[neighborCellSortedIndex];
                 for (int i = start; i < end; i++)
                 {
-                    if (i != idx)
+                    int boidId = sortedTuples[i].y;
+                    if (boidId != idx)
                     {
-                        float d = flock[idx].location.distance(flock[i].location);
+                        Boid neighbor = flock[boidId];
+                        float d = newFlock[idx].location.distance(neighbor.location);
                         if ((d > 0) && (d < desiredSeparation))
                         {
-                            diff = diff.subTwoVector(flock[idx].location, flock[i].location);
+                            diff = diff.subTwoVector(newFlock[idx].location, neighbor.location);
                             diff.normalize();
                             diff.divScalar(d);
                             separationVector.addVector(diff);
                             separationCount++;
                         }
-                        if ((d > 0) && (d < flock[idx].radius))
+                        if ((d > 0) && (d < newFlock[idx].radius))
                         {
-                            alignmentVector.addVector(flock[i].velocity);
-                            cohesionVector.addVector(flock[i].location);
+                            alignmentVector.addVector(neighbor.velocity);
+                            cohesionVector.addVector(neighbor.location);
                             neighborCount++;
                         }
                     }
@@ -102,34 +171,34 @@ __global__ void flockingKernel(Boid *flock, int flockSize, Pvector *sortedTuples
             if (separationVector.magnitude() > 0)
             {
                 separationVector.normalize();
-                separationVector.mulScalar(flock[idx].maxSpeed);
-                separationVector.subVector(flock[idx].velocity);
-                separationVector.limit(flock[idx].maxForce);
+                separationVector.mulScalar(newFlock[idx].maxSpeed);
+                separationVector.subVector(newFlock[idx].velocity);
+                separationVector.limit(newFlock[idx].maxForce);
             }
         }
         if (neighborCount > 0)
         {
             alignmentVector.divScalar((float)neighborCount);
             alignmentVector.normalize();
-            alignmentVector.mulScalar(flock[idx].maxSpeed);
-            alignmentVector.subVector(flock[idx].velocity);
-            alignmentVector.limit(flock[idx].maxForce);
+            alignmentVector.mulScalar(newFlock[idx].maxSpeed);
+            alignmentVector.subVector(newFlock[idx].velocity);
+            alignmentVector.limit(newFlock[idx].maxForce);
 
             cohesionVector.divScalar((float)neighborCount);
-            cohesionVector.divScalar((float)neighborCount);
-            cohesionVector = flock[idx].seek(cohesionVector);
+            cohesionVector = newFlock[idx].seek(cohesionVector);
         }
 
         separationVector.mulScalar(1.5);
         alignmentVector.mulScalar(1.0);
         cohesionVector.mulScalar(1.0);
 
-        flock[idx].applyForce(separationVector);
-        flock[idx].applyForce(alignmentVector);
-        flock[idx].applyForce(cohesionVector);
+        newFlock[idx].applyForce(separationVector);
+        newFlock[idx].applyForce(alignmentVector);
+        newFlock[idx].applyForce(cohesionVector);
 
-        // flock[idx].flock(flock, flockSize);
-        flock[idx].update();
+        // newFlock[idx].flock(flock, flockSize);
+
+        newFlock[idx].update();
     }
 }
 
@@ -138,9 +207,10 @@ __global__ void calcHashKernel(int *hash, Boid *boids, int screenLength, int num
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < numBoids)
     {
-        int x = (int)(boids[idx].location.x / cellSize);
-        int y = (int)(boids[idx].location.y / cellSize);
-        hash[idx] = x + y * screenLength;
+        int x = boids[idx].location.x;
+        int y = boids[idx].location.y;
+        hash[idx] = linearHash(x, y, screenLength, cellSize);
+        // printf("x: %d, y: %d hash: %d\n", x, y, hash[idx]);
     }
 }
 
@@ -189,24 +259,26 @@ __global__ void cellEndsKernel(Pvector *sorted, int *cellEnds, int numBoids)
 __host__ void computeGrid(int *hash, Boid *boids, Pvector *unsortedTuples, Pvector *sortedTuples, int *cellStarts, int *cellEnds, int screenLength, int numBoids, int cellSize, int numThreads, int numBlocks)
 {
     calcHashKernel<<<numBlocks, numThreads>>>(hash, boids, screenLength, numBoids, cellSize);
-    particleHashKernel<<<numBlocks, numThreads>>>(hash, unsortedTuples, numBoids);
+    particleHashKernel<<<numBlocks, numThreads>>>(hash, sortedTuples, numBoids);
 
-    // Convert raw pointers to Thrust device pointers
-    thrust::device_ptr<Pvector> thrust_unsortedTuples(unsortedTuples);
-    thrust::device_ptr<Pvector> thrust_sortedTuples(sortedTuples);
-
-    // Copy unsorted tuples to sorted tuples
-    thrust::copy(thrust_unsortedTuples, thrust_unsortedTuples + numBoids, thrust_sortedTuples);
+    // make host hash and host sorted tuples
+    int *hashHost = new int[numBoids];
+    Pvector *sortedTuplesHost = new Pvector[numBoids];
+    cudaMemcpy(hashHost, hash, numBoids * sizeof(int), cudaMemcpyDeviceToHost);
+    cudaMemcpy(sortedTuplesHost, sortedTuples, numBoids * sizeof(Pvector), cudaMemcpyDeviceToHost);
 
     // Sort the tuples based on the hash values (.x component)
-    thrust::sort(thrust_sortedTuples, thrust_sortedTuples + numBoids, [] __device__(const Pvector &a, const Pvector &b)
-                 { return a.x < b.x; });
+    thrust::sort_by_key(hashHost, hashHost + numBoids, sortedTuplesHost);
 
-    // Copy sorted tuples back to sortedTuples
-    thrust::copy(thrust_sortedTuples, thrust_sortedTuples + numBoids, sortedTuples);
+    // print sorted tuples
+    // for (int i = 0; i < numBoids; i++)
+    // {
+    //     printf("Sorted Tuple %d: (%f, %f)\n", i, sortedTuplesHost[i].x, sortedTuplesHost[i].y);
+    // }
 
-    cudaCheckError(cudaDeviceSynchronize());
-
+    // Copy sorted tuples from host to device
+    cudaMemcpy(sortedTuples, sortedTuplesHost, numBoids * sizeof(Pvector), cudaMemcpyHostToDevice);
+    
     cellStartsKernel<<<numBlocks, numThreads>>>(sortedTuples, cellStarts, numBoids);
     cellEndsKernel<<<numBlocks, numThreads>>>(sortedTuples, cellEnds, numBoids);
 }
@@ -220,6 +292,10 @@ __host__ __device__ void Flock::cudaFlocking()
 
     // Allocate device memory for flock
     cudaMalloc((void **)&deviceFlock, numBytes);
+
+    // Allocate device memory for new flock
+    Boid *deviceNewFlock;
+    cudaMalloc((void **)&deviceNewFlock, numBytes);
 
     // Allocate device memory for hash
     int *deviceHash;
@@ -241,11 +317,6 @@ __host__ __device__ void Flock::cudaFlocking()
     int *deviceCellEnds;
     cudaMalloc((void **)&deviceCellEnds, size * sizeof(int));
 
-    // Compute grid
-    int numThreads = 256;
-    int numBlocks = (size + numThreads - 1) / numThreads;
-    computeGrid(deviceHash, deviceFlock, deviceUnsortedTuples, deviceSortedTuples, deviceCellStarts, deviceCellEnds, SCREEN_LENGTH, size, radius * 2, numThreads, numBlocks);
-
     // make flock buffer
     Boid *flockBuffer = new Boid[size];
     for (int i = 0; i < size; i++)
@@ -256,14 +327,20 @@ __host__ __device__ void Flock::cudaFlocking()
     // Copy flock from host to device
     cudaMemcpy(deviceFlock, flockBuffer, numBytes, cudaMemcpyHostToDevice);
 
+    // Compute grid
+    // printf("threads: %d\n", numThreads); 
+    int threads = numThreads;
+    int numBlocks = (size + threads - 1) / threads;
+    computeGrid(deviceHash, deviceFlock, deviceUnsortedTuples, deviceSortedTuples, deviceCellStarts, deviceCellEnds, SCREEN_LENGTH, size, radius * 2, numThreads, numBlocks);
+
     // Run cudaFlocking kernel
-    flockingKernel<<<numBlocks, numThreads>>>(deviceFlock, size, deviceSortedTuples, deviceCellStarts, deviceCellEnds, deviceHash, radius * 2);
+    flockingKernel<<<numBlocks, numThreads>>>(deviceFlock, deviceNewFlock, size, deviceSortedTuples, deviceCellStarts, deviceCellEnds, deviceHash, radius * 2);
 
     // Synchronize to ensure all CUDA calls are completed
     cudaDeviceSynchronize();
 
     // Copy flock from device to host
-    cudaMemcpy(flockBuffer, deviceFlock, numBytes, cudaMemcpyDeviceToHost);
+    cudaMemcpy(flockBuffer, deviceNewFlock, numBytes, cudaMemcpyDeviceToHost);
 
     // Update flock
     for (int i = 0; i < size; i++)
@@ -273,7 +350,7 @@ __host__ __device__ void Flock::cudaFlocking()
 
     // Free device memory
     cudaFree(deviceFlock);
-}
+    }
 
 // Runs the run function for every boid in the flock checking against the flock
 // itself. Which in turn applies all the rules to the flock.

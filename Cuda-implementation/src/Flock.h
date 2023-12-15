@@ -15,9 +15,10 @@ class Flock {
 public:
     //Constructors
     __host__ __device__ Flock() {}
-    __host__ __device__ Flock(vector<Boid> boids) {
+    __host__ __device__ Flock(vector<Boid> boids, int threads) {
         flock = boids;
         radius = 50;
+        numThreads = threads;
     }
     // Accessor functions
     __host__ __device__ int getSize();
@@ -31,6 +32,7 @@ public:
 private:
     vector<Boid> flock;  
     float radius;
+    int numThreads;
 };
 
 #endif

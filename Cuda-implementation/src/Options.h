@@ -11,6 +11,7 @@ public:
     int numIterations;
     bool CUDA;
     float radius;
+    int numThreads;
     std::string outputFile;
     std::string inputFile;
 

@@ -3,7 +3,7 @@
 #include "Options.h"
 
 #ifndef GAME_H
-#define GAME_Hx
+#define GAME_H
 
 // Game handles the instantiation of a flock of boids, game input, asks the
 // model to compute the next step in the stimulation, and handles all of the

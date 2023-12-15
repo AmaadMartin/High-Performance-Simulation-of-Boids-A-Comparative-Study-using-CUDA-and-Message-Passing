@@ -17,6 +17,7 @@ __host__ __device__ bool Options::parseArgs(int argc, char *argv[])
     CUDA = false;
     numIterations = 1;
     radius = 50;
+    numThreads = 256;
     for (int i = 1; i < argc; i++)
     {
         if (i < argc - 1)
@@ -29,6 +30,8 @@ __host__ __device__ bool Options::parseArgs(int argc, char *argv[])
                 outputFile = argv[i + 1];
             else if (strcmp(argv[i], "-r") == 0)
                 radius = (float)atof(argv[i + 1]);
+            else if (strcmp(argv[i], "-t") == 0)
+                numThreads = atoi(argv[i + 1]);
         }
         if (strcmp(argv[i], "-cu") == 0)
         {
@@ -67,10 +70,8 @@ __host__ __device__ vector<Boid> Options::loadFromFile()
         boid.velocity.x = (float)atof(str.c_str());
         std::getline(sstream, str, ' ');
         boid.velocity.y = (float)atof(str.c_str());
-        std::getline(sstream, str, ' ');
-        boid.acceleration.x = (float)atof(str.c_str());
-        std::getline(sstream, str, ' ');
-        boid.acceleration.y = (float)atof(str.c_str());
+        boid.acceleration.x = 0;
+        boid.acceleration.y = 0;
         boid.id = numBoids;
         // printf("Boid %d: %f %f %f %f\n", boid.id, boid.location.x, boid.location.y, boid.velocity.x, boid.velocity.y);
         flock.push_back(boid);

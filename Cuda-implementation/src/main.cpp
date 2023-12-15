@@ -10,7 +10,6 @@
 // #include "Common.h"
 #include "Options.h"
 #include "Flock.h"
-#include "CudaFlock.h"
 #include "Boid.h"
 #include "timing.h"
 
@@ -84,11 +83,14 @@ int main(int argc, char *argv[])
     game.Run();
     double time = timer.elapsed();
     printf("Time: %f\n", time);
+
+    if (options.outputFile != "")
+    {
+        saveToFile(options.outputFile, game.flock);
+    }
     
     // if (options.CUDA){
     //     refCompare("benchmark-files/random-100-ref.txt", game.flock);
-    // } else {
-    //     saveToFile(options.outputFile, game.flock);
     // }
     return 0;
 }

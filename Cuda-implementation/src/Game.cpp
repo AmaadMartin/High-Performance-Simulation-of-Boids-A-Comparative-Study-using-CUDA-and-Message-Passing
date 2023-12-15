@@ -12,7 +12,7 @@ __host__ __device__ Game::Game(Options startupOptions)
     // Create flock from file
     vector<Boid> boids = startupOptions.loadFromFile();
     options = startupOptions;
-    flock = Flock(boids);
+    flock = Flock(boids, options.numThreads);
 }
 
 // Run the simulation

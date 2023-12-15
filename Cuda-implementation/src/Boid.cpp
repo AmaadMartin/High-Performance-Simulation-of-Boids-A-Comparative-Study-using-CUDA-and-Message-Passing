@@ -340,7 +340,6 @@ void Boid::run(Boid* v, int flockSize)
 {
     flock(v, flockSize);
     update();
-    bound();
 }
 
 // Run flock() on the flock of boids.
@@ -351,7 +350,6 @@ void Boid::run(const vector <Boid>& v)
 {
     flock(v);
     update();
-    bound();
 }
 
 __host__ __device__ 
